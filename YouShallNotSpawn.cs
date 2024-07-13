@@ -8,7 +8,7 @@ using UnityEngine;
 namespace Oxide.Plugins
 {
     [Info("You Shall Not Spawn", "VisEntities", "1.0.0")]
-    [Description(" ")]
+    [Description("Prevents certain entities from spawning.")]
     public class YouShallNotSpawn : RustPlugin
     {
         #region Fields
