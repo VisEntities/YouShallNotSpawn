@@ -1,4 +1,10 @@
-﻿using Newtonsoft.Json;
+﻿/*
+ * Copyright (C) 2024 Game4Freak.io
+ * This mod is provided under the Game4Freak EULA.
+ * Full legal terms can be found at https://game4freak.io/eula/
+ */
+
+using Newtonsoft.Json;
 using System;
 using System.Collections;
 using System.Collections.Generic;
