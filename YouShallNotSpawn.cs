@@ -13,7 +13,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("You Shall Not Spawn", "VisEntities", "1.0.0")]
+    [Info("You Shall Not Spawn", "VisEntities", "1.1.0")]
     [Description("Prevents certain entities from spawning.")]
     public class YouShallNotSpawn : RustPlugin
     {
@@ -34,8 +34,11 @@ namespace Oxide.Plugins
             [JsonProperty("Clean Up Existing Entities On Startup")]
             public bool CleanUpExistingEntitiesOnStartup { get; set; }
 
-            [JsonProperty("Entity Short Prefab Names")]
-            public List<string> EntityShortPrefabNames { get; set; }
+            [JsonProperty("Entity Keyword Whitelist (prefab or type substring)")]
+            public List<string> EntityKeywordWhitelist { get; set; }
+
+            [JsonProperty("Entity Keyword Blacklist (prefab or type substring)")]
+            public List<string> EntityKeywordBlacklist { get; set; }
         }
 
         protected override void LoadConfig()
@@ -78,10 +81,8 @@ namespace Oxide.Plugins
             {
                 Version = Version.ToString(),
                 CleanUpExistingEntitiesOnStartup = false,
-                EntityShortPrefabNames = new List<string>
-                {
-                    "chicken"
-                }
+                EntityKeywordWhitelist = new List<string>(),
+                EntityKeywordBlacklist = new List<string>()
             };
         }
 
@@ -114,31 +115,76 @@ namespace Oxide.Plugins
             if (networkableEntity == null)
                 return;
 
-            if (_config.EntityShortPrefabNames.Contains(networkableEntity.ShortPrefabName))
+            if (PassesKeywordFilters(networkableEntity as BaseEntity, _config.EntityKeywordWhitelist, _config.EntityKeywordBlacklist))
             {
-                NextTick(() =>
-                {
-                    networkableEntity.Kill();
-                });
+                NextTick(() => networkableEntity.Kill());
             }
         }
 
         #endregion Oxide Hooks
 
-        #region Entity Cleanup On Startup
+        #region Core
 
         private IEnumerator KillEntitiesOnStartupCoroutine()
         {
             foreach (BaseNetworkable networkableEntity in BaseNetworkable.serverEntities)
             {
-                if (networkableEntity != null && _config.EntityShortPrefabNames.Contains(networkableEntity.ShortPrefabName))
-                    networkableEntity.Kill();
+                BaseEntity entity = networkableEntity as BaseEntity;
+                if (entity != null && PassesKeywordFilters(entity, _config.EntityKeywordWhitelist, _config.EntityKeywordBlacklist))
+                    entity.Kill();
 
                 yield return null;
             }
         }
 
-        #endregion Entity Cleanup On Startup
+        private static bool PassesKeywordFilters(BaseEntity entity, IReadOnlyCollection<string> whitelist, IReadOnlyCollection<string> blacklist)
+        {
+            if (entity == null)
+                return false;
+
+            string prefabName = string.Empty;
+            if (entity.ShortPrefabName != null)
+                prefabName = entity.ShortPrefabName.ToLowerInvariant();
+
+            string typeName = entity.GetType().Name.ToLowerInvariant();
+
+            if (whitelist != null && whitelist.Count > 0)
+            {
+                bool anyMatch = false;
+                foreach (string keyword in whitelist)
+                {
+                    if (string.IsNullOrEmpty(keyword))
+                        continue;
+
+                    string lowerKeyword = keyword.ToLowerInvariant();
+                    if (prefabName.Contains(lowerKeyword) || typeName.Contains(lowerKeyword))
+                    {
+                        anyMatch = true;
+                        break;
+                    }
+                }
+
+                if (!anyMatch)
+                    return false;
+            }
+
+            if (blacklist != null && blacklist.Count > 0)
+            {
+                foreach (string keyword in blacklist)
+                {
+                    if (string.IsNullOrEmpty(keyword))
+                        continue;
+
+                    string lowerKeyword = keyword.ToLowerInvariant();
+                    if (prefabName.Contains(lowerKeyword) || typeName.Contains(lowerKeyword))
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
+        #endregion Core
 
         #region Helper Classes
 
@@ -146,16 +192,31 @@ namespace Oxide.Plugins
         {
             private static readonly Dictionary<string, Coroutine> _activeCoroutines = new Dictionary<string, Coroutine>();
 
-            public static void StartCoroutine(string coroutineName, IEnumerator coroutineFunction)
+            public static Coroutine StartCoroutine(string baseCoroutineName, IEnumerator coroutineFunction, string uniqueSuffix = null)
             {
+                string coroutineName;
+
+                if (uniqueSuffix != null)
+                    coroutineName = baseCoroutineName + "_" + uniqueSuffix;
+                else
+                    coroutineName = baseCoroutineName;
+
                 StopCoroutine(coroutineName);
 
                 Coroutine coroutine = ServerMgr.Instance.StartCoroutine(coroutineFunction);
                 _activeCoroutines[coroutineName] = coroutine;
+                return coroutine;
             }
 
-            public static void StopCoroutine(string coroutineName)
+            public static void StopCoroutine(string baseCoroutineName, string uniqueSuffix = null)
             {
+                string coroutineName;
+
+                if (uniqueSuffix != null)
+                    coroutineName = baseCoroutineName + "_" + uniqueSuffix;
+                else
+                    coroutineName = baseCoroutineName;
+
                 if (_activeCoroutines.TryGetValue(coroutineName, out Coroutine coroutine))
                 {
                     if (coroutine != null)
