@@ -13,7 +13,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("You Shall Not Spawn", "VisEntities", "1.1.0")]
+    [Info("You Shall Not Spawn", "VisEntities", "1.1.1")]
     [Description("Prevents certain entities from spawning.")]
     public class YouShallNotSpawn : RustPlugin
     {
@@ -104,9 +104,13 @@ namespace Oxide.Plugins
 
         private void OnServerInitialized(bool isStartup)
         {
-            if (_config.CleanUpExistingEntitiesOnStartup)
+            if (_config.CleanUpExistingEntitiesOnStartup
+                && _config.EntityKeywordWhitelist != null
+                && _config.EntityKeywordWhitelist.Count > 0)
             {
-                CoroutineUtil.StartCoroutine(Guid.NewGuid().ToString(), KillEntitiesOnStartupCoroutine());
+                CoroutineUtil.StartCoroutine(
+                    "KillEntitiesOnStartup",
+                    KillEntitiesOnStartupCoroutine());
             }
         }
 
